@@ -256,11 +256,8 @@ jobs:
               echo "⚙️ Created .env from .env.example"
             fi
             
-            # Generate APP_KEY if not set
-            if ! grep -q '^APP_KEY=base64:' .env 2>/dev/null; then
-              php artisan key:generate --quiet
-              echo "🔑 Generated APP_KEY"
-            fi
+            # Generate APP_KEY (--force won't break existing sessions, just ensures key exists)
+            php artisan key:generate --force --quiet
             
             # Create public_html symlink so Hostinger serves Laravel's public/ dir
             if [ -d public ] && [ ! -L public_html ] && [ ! -d public_html ]; then
