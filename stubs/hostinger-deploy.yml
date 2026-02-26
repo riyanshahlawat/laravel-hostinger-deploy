@@ -216,6 +216,17 @@ jobs:
             
             cd domains/${{ secrets.WEBSITE_FOLDER }}
             
+            # Set up SSH key for git operations
+            SSH_KEY=$(ls ~/.ssh/id_rsa_* 2>/dev/null | head -1 || echo "$HOME/.ssh/id_rsa")
+            export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+            
+            # Convert remote URL from HTTPS to SSH so deploy key works
+            REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+            if echo "$REMOTE_URL" | grep -q "https://github.com/"; then
+              SSH_URL=$(echo "$REMOTE_URL" | sed 's|https://github.com/|git@github.com:|')
+              git remote set-url origin "$SSH_URL"
+            fi
+            
             # Pull latest changes (detect current branch, fallback to configured branch)
             git fetch origin
             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
