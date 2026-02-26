@@ -247,9 +247,15 @@ jobs:
               git reset --hard origin/$CURRENT_BRANCH
             fi
             
-            # Use the PHP version matching hPanel configuration
-            PHP_BIN=$(which php8.4 2>/dev/null || which php8.3 2>/dev/null || which php8.2 2>/dev/null || which php)
-            alias php="$PHP_BIN"
+            # Use the PHP version matching hPanel configuration (Hostinger-specific paths)
+            PHP_BIN=$( \
+              ls /usr/local/php8*/bin/php 2>/dev/null | sort -r | head -1 || \
+              which php8.4 2>/dev/null || \
+              which php8.3 2>/dev/null || \
+              which php8.2 2>/dev/null || \
+              which php \
+            )
+            echo "🐘 Using PHP binary: $PHP_BIN ($($PHP_BIN -r 'echo PHP_VERSION;'))"
 
             echo "📦 Installing Composer dependencies..."
             $PHP_BIN $(which composer) install --no-dev --optimize-autoloader --no-interaction --prefer-dist
