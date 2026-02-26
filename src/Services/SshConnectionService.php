@@ -26,10 +26,37 @@ class SshConnectionService
     public function execute(string $command): string
     {
         $sshCommand = $this->buildSshCommand($command);
+        $askPassPath = null;
         
         try {
-            $result = Process::timeout($this->timeout)
-                ->run($sshCommand);
+            $process = Process::timeout($this->timeout);
+
+            // Handle password input natively via SSH_ASKPASS for true headless deployment
+            if (!empty($this->password)) {
+                $isWindows = DIRECTORY_SEPARATOR === '\\';
+                $askPassPath = tempnam(sys_get_temp_dir(), 'ssh_askpass_') . ($isWindows ? '.bat' : '.sh');
+                
+                if ($isWindows) {
+                    file_put_contents($askPassPath, "@echo off\necho %SSH_PASS_INJECT%");
+                } else {
+                    file_put_contents($askPassPath, "#!/bin/sh\necho \"\$SSH_PASS_INJECT\"");
+                    chmod($askPassPath, 0700);
+                }
+
+                $process = $process->env([
+                    'DISPLAY' => 'dummy:0',
+                    'SSH_ASKPASS' => $isWindows ? realpath($askPassPath) : $askPassPath,
+                    'SSH_ASKPASS_REQUIRE' => 'force',
+                    'SSH_PASS_INJECT' => $this->password
+                ]);
+            }
+
+            $result = $process->run($sshCommand);
+            
+            // Clean up the temporary askpass script
+            if ($askPassPath && file_exists($askPassPath)) {
+                @unlink($askPassPath);
+            }
             
             if (!$result->successful()) {
                 // Build detailed error message with error output and exit code
@@ -58,6 +85,11 @@ class SshConnectionService
             
             return $result->output();
         } catch (\Exception $e) {
+            // Guarantee cleanup on exception
+            if (isset($askPassPath) && file_exists($askPassPath)) {
+                @unlink($askPassPath);
+            }
+
             // If it's already our formatted exception, re-throw it
             if (strpos($e->getMessage(), 'SSH command failed') === 0) {
                 throw $e;
