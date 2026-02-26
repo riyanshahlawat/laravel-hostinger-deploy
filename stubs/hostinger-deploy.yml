@@ -250,14 +250,27 @@ jobs:
             echo "📦 Installing Composer dependencies..."
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --ignore-platform-reqs
             
-            # Set up .env file if not exists
-            if [ ! -f .env ]; then
-              echo "⚙️  Creating .env from .env.example..."
+            # Set up .env if missing
+            if [ -f .env.example ] && [ ! -f .env ]; then
               cp .env.example .env
-              php artisan key:generate --force
-              echo "⚠️  .env created with defaults - please update database credentials on the server!"
-            else
-              echo "✅ .env file exists"
+              echo "⚙️ Created .env from .env.example"
+            fi
+            
+            # Generate APP_KEY if not set
+            if ! grep -q '^APP_KEY=base64:' .env 2>/dev/null; then
+              php artisan key:generate --quiet
+              echo "🔑 Generated APP_KEY"
+            fi
+            
+            # Create public_html symlink so Hostinger serves Laravel's public/ dir
+            if [ -d public ] && [ ! -L public_html ] && [ ! -d public_html ]; then
+              ln -s public public_html
+              echo "🔗 Created public_html symlink"
+            fi
+
+            # Create storage symlink
+            if [ ! -L public/storage ]; then
+              php artisan storage:link --quiet || true
             fi
             
             echo "🔧 Running Laravel setup commands..."
