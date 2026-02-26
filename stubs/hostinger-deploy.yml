@@ -219,21 +219,33 @@ jobs:
             # Set up SSH key for git operations
             SSH_KEY=$(ls ~/.ssh/id_rsa_* 2>/dev/null | head -1 || echo "$HOME/.ssh/id_rsa")
             export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
-            
-            # Convert remote URL from HTTPS to SSH so deploy key works
-            REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-            if echo "$REMOTE_URL" | grep -q "https://github.com/"; then
+
+            if [ ! -d ".git" ]; then
+              # No git repo yet - fresh clone
+              echo "📦 No git repo found. Doing fresh clone..."
+              shopt -s dotglob
+              rm -rf *
+              REMOTE_URL=$(cat ~/.git_remote_url 2>/dev/null || echo "")
+              if [ -z "$REMOTE_URL" ]; then
+                echo "❌ Cannot determine repo URL. Please redeploy via php artisan hostinger:deploy"
+                exit 1
+              fi
               SSH_URL=$(echo "$REMOTE_URL" | sed 's|https://github.com/|git@github.com:|')
-              git remote set-url origin "$SSH_URL"
+              git clone "$SSH_URL" .
+            else
+              # Existing repo - convert HTTPS remote to SSH and pull
+              REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+              if echo "$REMOTE_URL" | grep -q "https://github.com/"; then
+                SSH_URL=$(echo "$REMOTE_URL" | sed 's|https://github.com/|git@github.com:|')
+                git remote set-url origin "$SSH_URL"
+              fi
+              git fetch origin
+              CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+              if [ -z "$CURRENT_BRANCH" ] || [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                CURRENT_BRANCH="{{BRANCH}}"
+              fi
+              git reset --hard origin/$CURRENT_BRANCH
             fi
-            
-            # Pull latest changes (detect current branch, fallback to configured branch)
-            git fetch origin
-            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-            if [ -z "$CURRENT_BRANCH" ] || [ "$CURRENT_BRANCH" = "HEAD" ]; then
-              CURRENT_BRANCH="{{BRANCH}}"
-            fi
-            git reset --hard origin/$CURRENT_BRANCH
             
             echo "📦 Installing Composer dependencies..."
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
