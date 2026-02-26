@@ -256,9 +256,9 @@ jobs:
               echo "⚙️ Created .env from .env.example"
             fi
             
-            # Generate APP_KEY using bash (no PHP needed - avoids PHP CLI version issues)
+            # Generate APP_KEY using openssl (no PHP needed - avoids PHP CLI version issues)
             if ! grep -q 'APP_KEY=base64:' .env 2>/dev/null || grep -q 'APP_KEY=$' .env 2>/dev/null || grep -q 'APP_KEY=""' .env 2>/dev/null; then
-              NEW_KEY="base64:$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 -w 0)"
+              NEW_KEY="base64:$(openssl rand -base64 32)"
               sed -i "s|^APP_KEY=.*|APP_KEY=${NEW_KEY}|" .env
               echo "🔑 Generated APP_KEY"
             fi
