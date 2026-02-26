@@ -13,6 +13,7 @@ return [
     'ssh' => [
         'host' => env('HOSTINGER_SSH_HOST'),
         'username' => env('HOSTINGER_SSH_USERNAME'),
+        'password' => env('HOSTINGER_SSH_PASSWORD'),
         'port' => env('HOSTINGER_SSH_PORT', 22),
         'timeout' => 30,
     ],
