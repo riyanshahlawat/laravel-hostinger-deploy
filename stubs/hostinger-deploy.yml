@@ -217,7 +217,7 @@ jobs:
             
             # Ensure we're on the correct branch
             git fetch origin
-            git checkout {{BRANCH}}
+            git checkout -B {{BRANCH}} origin/{{BRANCH}} || git checkout {{BRANCH}}
             git reset --hard origin/{{BRANCH}}
             
             echo "📦 Installing Composer dependencies..."
