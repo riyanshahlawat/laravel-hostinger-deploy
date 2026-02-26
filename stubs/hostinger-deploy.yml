@@ -247,15 +247,18 @@ jobs:
               git reset --hard origin/$CURRENT_BRANCH
             fi
             
-            echo " Installing Composer dependencies..."
+            echo "📦 Installing Composer dependencies..."
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --ignore-platform-reqs
             
-            # Note: Frontend assets should already be built and committed
-            # If you need to build on server, ensure npm/node is available
-            # and uncomment the following lines:
-            # if [ -f package.json ]; then
-            #   npm ci --production && npm run build || npm run prod
-            # fi
+            # Set up .env file if not exists
+            if [ ! -f .env ]; then
+              echo "⚙️  Creating .env from .env.example..."
+              cp .env.example .env
+              php artisan key:generate --force
+              echo "⚠️  .env created with defaults - please update database credentials on the server!"
+            else
+              echo "✅ .env file exists"
+            fi
             
             echo "🔧 Running Laravel setup commands..."
             
