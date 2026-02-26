@@ -216,10 +216,9 @@ jobs:
             
             cd domains/${{ secrets.WEBSITE_FOLDER }}
             
-            # Ensure we're on the correct branch
+            # Pull latest changes on the current tracked branch
             git fetch origin
-            git checkout -B {{BRANCH}} origin/{{BRANCH}} || git checkout --track origin/{{BRANCH}} || git checkout {{BRANCH}}
-            git reset --hard origin/{{BRANCH}}
+            git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)
             
             echo "📦 Installing Composer dependencies..."
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
