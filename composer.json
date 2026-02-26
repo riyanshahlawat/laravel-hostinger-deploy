@@ -1,5 +1,5 @@
 {
-    "name": "thecodeholic/laravel-hostinger-deploy",
+    "name": "ahlaw/laravel-hostinger-deploy",
     "description": "Laravel package for automated Hostinger deployment with GitHub Actions support",
     "type": "library",
     "version": "0.5.0",
