@@ -116,6 +116,13 @@ abstract class BaseHostingerCommand extends Command
                 'hostinger-deploy.ssh.password' => env('HOSTINGER_SSH_PASSWORD', $envVars['HOSTINGER_SSH_PASSWORD'] ?? null),
                 'hostinger-deploy.deployment.site_dir' => env('HOSTINGER_SITE_DIR', $envVars['HOSTINGER_SITE_DIR'] ?? null),
             ]);
+            
+            // Explicitly set GITHUB_API_TOKEN if it was collected so `env()` sub-calls can see it instantly
+            if (isset($envVars['GITHUB_API_TOKEN'])) {
+                $_ENV['GITHUB_API_TOKEN'] = $envVars['GITHUB_API_TOKEN'];
+                $_SERVER['GITHUB_API_TOKEN'] = $envVars['GITHUB_API_TOKEN'];
+                putenv("GITHUB_API_TOKEN={$envVars['GITHUB_API_TOKEN']}");
+            }
         }
 
         return true;
