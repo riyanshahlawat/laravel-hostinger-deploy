@@ -43,9 +43,7 @@ class GitHubAPIService
      */
     public function encryptSecret(string $plaintext, string $publicKey, string $keyId): array
     {
-        if (!extension_loaded('sodium')) {
-            throw new Exception('LibSodium extension is required for encrypting secrets. Install php-sodium extension.');
-        }
+        // Depend on paragonie/sodium_compat polyfill if native extension is not available
 
         // Decode the base64 public key
         $publicKeyBinary = base64_decode($publicKey, true);
