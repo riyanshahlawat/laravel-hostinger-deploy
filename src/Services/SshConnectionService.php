@@ -3,7 +3,8 @@
 namespace TheCodeholic\LaravelHostingerDeploy\Services;
 
 use Illuminate\Support\Facades\Process;
-use Illuminate\Process\Exceptions\ProcessFailedException;
+use phpseclib3\Net\SSH2;
+use phpseclib3\Crypt\PublicKeyLoader;
 
 class SshConnectionService
 {
@@ -21,82 +22,63 @@ class SshConnectionService
     }
 
     /**
-     * Execute a command on the remote server via SSH.
+     * Get or establish an active SSH connection natively.
+     */
+    protected function getConnection(): SSH2
+    {
+        $ssh = new SSH2($this->host, $this->port, $this->timeout);
+
+        // Try authenticating with password if provided
+        if (!empty($this->password)) {
+            if (!$ssh->login($this->username, $this->password)) {
+                throw new \Exception("SSH connection failed: Invalid password or authentication rejected by {$this->host}");
+            }
+            return $ssh;
+        }
+
+        // Fallback: Try authenticating with local SSH keys
+        $home = getenv('HOME') ?: getenv('USERPROFILE');
+        $privateKeyPath = "{$home}/.ssh/id_rsa";
+
+        if (file_exists($privateKeyPath)) {
+            $key = PublicKeyLoader::load(file_get_contents($privateKeyPath));
+            if (!$ssh->login($this->username, $key)) {
+                throw new \Exception("SSH connection failed: Local SSH Key authentication rejected by {$this->host}");
+            }
+            return $ssh;
+        }
+
+        throw new \Exception("SSH connection failed: No password provided and no local SSH key found at {$privateKeyPath}");
+    }
+
+    /**
+     * Execute a command on the remote server natively via phpseclib.
      */
     public function execute(string $command): string
     {
-        $sshCommand = $this->buildSshCommand($command);
-        $askPassPath = null;
-        
         try {
-            $process = Process::timeout($this->timeout);
-
-            // Handle password input natively via SSH_ASKPASS for true headless deployment
-            if (!empty($this->password)) {
-                $isWindows = DIRECTORY_SEPARATOR === '\\';
-                $askPassPath = tempnam(sys_get_temp_dir(), 'ssh_askpass_') . ($isWindows ? '.bat' : '.sh');
-                
-                if ($isWindows) {
-                    file_put_contents($askPassPath, "@echo off\necho %SSH_PASS_INJECT%");
-                } else {
-                    file_put_contents($askPassPath, "#!/bin/sh\necho \"\$SSH_PASS_INJECT\"");
-                    chmod($askPassPath, 0700);
-                }
-
-                $process = $process->env([
-                    'DISPLAY' => 'dummy:0',
-                    'SSH_ASKPASS' => $isWindows ? realpath($askPassPath) : $askPassPath,
-                    'SSH_ASKPASS_REQUIRE' => 'force',
-                    'SSH_PASS_INJECT' => $this->password
-                ]);
-            }
-
-            $result = $process->run($sshCommand);
+            $ssh = $this->getConnection();
             
-            // Clean up the temporary askpass script
-            if ($askPassPath && file_exists($askPassPath)) {
-                @unlink($askPassPath);
-            }
+            // Execute command and capture exit status
+            $output = $ssh->exec($command);
+            $exitCode = $ssh->getExitStatus();
             
-            if (!$result->successful()) {
-                // Build detailed error message with error output and exit code
-                $errorOutput = $result->errorOutput();
-                $exitCode = $result->exitCode();
-                $output = $result->output();
-                
-                $errorMessage = "SSH command failed";
-                if ($exitCode !== null) {
-                    $errorMessage .= " (exit code: {$exitCode})";
+            if ($exitCode !== 0 && $exitCode !== false) {
+                // Try to capture stderr nicely
+                $errorMessage = "SSH command failed (exit code: {$exitCode}): Command exited with non-zero status";
+                if (!empty(trim((string)$output))) {
+                    $errorMessage .= "\nOutput/Error: " . trim((string)$output);
                 }
-                $errorMessage .= ": Command exited with non-zero status";
-                
-                // Include error output if available
-                if (!empty(trim($errorOutput))) {
-                    $errorMessage .= "\nError output: " . trim($errorOutput);
-                }
-                
-                // Include regular output if it contains useful info and is different from error output
-                if (!empty(trim($output)) && trim($errorOutput) !== trim($output)) {
-                    $errorMessage .= "\nOutput: " . trim($output);
-                }
-                
                 throw new \Exception($errorMessage);
             }
             
-            return $result->output();
+            return (string)$output;
         } catch (\Exception $e) {
-            // Guarantee cleanup on exception
-            if (isset($askPassPath) && file_exists($askPassPath)) {
-                @unlink($askPassPath);
-            }
-
-            // If it's already our formatted exception, re-throw it
-            if (strpos($e->getMessage(), 'SSH command failed') === 0) {
+            // Re-throw our own formatted exceptions
+            if (strpos($e->getMessage(), 'SSH') === 0) {
                 throw $e;
             }
-            
-            // For other exceptions (like ProcessFailedException), preserve the message
-            throw new \Exception("SSH command failed: " . $e->getMessage(), 0, $e);
+            throw new \Exception("SSH connection/command failed: " . $e->getMessage(), 0, $e);
         }
     }
 
@@ -238,7 +220,7 @@ class SshConnectionService
         // Escape the command properly for the shell
         $escapedCommand = escapeshellarg($command);
         $sshCommand = 'ssh ' . implode(' ', $sshOptions) . ' ' . $this->username . '@' . $this->host . ' ' . $escapedCommand;
-        
+
         return $sshCommand;
     }
 
