@@ -165,8 +165,8 @@ abstract class BaseHostingerCommand extends Command
             config('hostinger-deploy.ssh.host') ?? env('HOSTINGER_SSH_HOST'),
             config('hostinger-deploy.ssh.username') ?? env('HOSTINGER_SSH_USERNAME'),
             config('hostinger-deploy.ssh.password') ?? env('HOSTINGER_SSH_PASSWORD'),
-            config('hostinger-deploy.ssh.port', 22),
-            config('hostinger-deploy.ssh.timeout', 30)
+            (int) config('hostinger-deploy.ssh.port', 22),
+            (int) config('hostinger-deploy.ssh.timeout', 30)
         );
     }
 
