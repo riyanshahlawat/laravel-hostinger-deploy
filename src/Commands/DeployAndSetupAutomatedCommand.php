@@ -73,6 +73,8 @@ class DeployAndSetupAutomatedCommand extends BaseHostingerCommand
         $this->line('');
 
         // Pass token to setup command if available (let setup-cicd handle the prompt if missing)
+        // Refresh token from environment in case Step 1's Interactive Wizard populated it
+        $token = $this->option('token') ?: env('GITHUB_API_TOKEN');
         $setupOptions = [];
         if ($token) {
             $setupOptions['--token'] = $token;
