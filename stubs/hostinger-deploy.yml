@@ -196,7 +196,8 @@ jobs:
         continue-on-error: true
         run: |
           if [ -d "${{ github.workspace }}/public/build" ]; then
-            rsync -r -e "ssh -p ${{ secrets.SSH_PORT }}" ${{ github.workspace }}/public/build/ ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:~/domains/${{ secrets.WEBSITE_FOLDER }}/public/build
+            ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "mkdir -p ~/domains/${{ secrets.WEBSITE_FOLDER }}/public/build"
+            rsync -r --mkpath -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" ${{ github.workspace }}/public/build/ ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:~/domains/${{ secrets.WEBSITE_FOLDER }}/public/build/ || true
           else
             echo "ℹ️ No build directory found, skipping asset copy"
           fi
@@ -217,7 +218,7 @@ jobs:
             
             # Ensure we're on the correct branch
             git fetch origin
-            git checkout -B {{BRANCH}} origin/{{BRANCH}} || git checkout {{BRANCH}}
+            git checkout -B {{BRANCH}} origin/{{BRANCH}} || git checkout --track origin/{{BRANCH}} || git checkout {{BRANCH}}
             git reset --hard origin/{{BRANCH}}
             
             echo "📦 Installing Composer dependencies..."
