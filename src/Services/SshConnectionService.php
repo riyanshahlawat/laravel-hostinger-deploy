@@ -10,13 +10,15 @@ class SshConnectionService
 {
     protected string $host;
     protected string $username;
+    protected ?string $password;
     protected int $port;
     protected int $timeout;
 
-    public function __construct(string $host, string $username, int $port = 22, int $timeout = 30)
+    public function __construct(string $host, string $username, ?string $password = null, int $port = 22, int $timeout = 30)
     {
         $this->host = $host;
         $this->username = $username;
+        $this->password = $password;
         $this->port = $port;
         $this->timeout = $timeout;
     }
