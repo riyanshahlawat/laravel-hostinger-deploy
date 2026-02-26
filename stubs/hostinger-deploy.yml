@@ -247,18 +247,8 @@ jobs:
               git reset --hard origin/$CURRENT_BRANCH
             fi
             
-            # Use the PHP version matching hPanel configuration (Hostinger-specific paths)
-            PHP_BIN=$( \
-              ls /usr/local/php8*/bin/php 2>/dev/null | sort -r | head -1 || \
-              which php8.4 2>/dev/null || \
-              which php8.3 2>/dev/null || \
-              which php8.2 2>/dev/null || \
-              which php \
-            )
-            echo "🐘 Using PHP binary: $PHP_BIN ($($PHP_BIN -r 'echo PHP_VERSION;'))"
-
-            echo "📦 Installing Composer dependencies..."
-            $PHP_BIN $(which composer) install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            echo " Installing Composer dependencies..."
+            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --ignore-platform-reqs
             
             # Note: Frontend assets should already be built and committed
             # If you need to build on server, ensure npm/node is available
@@ -270,39 +260,39 @@ jobs:
             echo "🔧 Running Laravel setup commands..."
             
             # Run migrations
-            $PHP_BIN artisan migrate --force
+            php artisan migrate --force
             
             # Clear and cache configuration
-            $PHP_BIN artisan config:clear
-            $PHP_BIN artisan config:cache
+            php artisan config:clear
+            php artisan config:cache
             
             # Clear and cache routes
-            $PHP_BIN artisan route:clear
-            $PHP_BIN artisan route:cache
+            php artisan route:clear
+            php artisan route:cache
             
             # Clear and cache views
-            $PHP_BIN artisan view:clear
-            $PHP_BIN artisan view:cache
+            php artisan view:clear
+            php artisan view:cache
             
             # Optimize application
-            $PHP_BIN artisan optimize:clear
-            $PHP_BIN artisan optimize
+            php artisan optimize:clear
+            php artisan optimize
             
             # Clear and cache events (if available)
-            $PHP_BIN artisan event:clear || true
-            $PHP_BIN artisan event:cache || true
+            php artisan event:clear || true
+            php artisan event:cache || true
             
             # Restart queue workers (if using queues)
-            $PHP_BIN artisan queue:restart || true
+            php artisan queue:restart || true
             
             # Restart Horizon (if using Laravel Horizon)
-            $PHP_BIN artisan horizon:terminate || true
+            php artisan horizon:terminate || true
             
             # Clear application cache
-            $PHP_BIN artisan cache:clear
+            php artisan cache:clear
             
             # Clear OPcache (if available)
-            $PHP_BIN artisan opcache:clear || true
+            php artisan opcache:clear || true
             
             echo "✅ Deployment completed successfully!"
             
