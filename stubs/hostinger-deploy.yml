@@ -216,9 +216,13 @@ jobs:
             
             cd domains/${{ secrets.WEBSITE_FOLDER }}
             
-            # Pull latest changes on the current tracked branch
+            # Pull latest changes (detect current branch, fallback to configured branch)
             git fetch origin
-            git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+            if [ -z "$CURRENT_BRANCH" ] || [ "$CURRENT_BRANCH" = "HEAD" ]; then
+              CURRENT_BRANCH="{{BRANCH}}"
+            fi
+            git reset --hard origin/$CURRENT_BRANCH
             
             echo "📦 Installing Composer dependencies..."
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
