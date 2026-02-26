@@ -256,11 +256,12 @@ jobs:
               echo "⚙️ Created .env from .env.example"
             fi
             
-            # Generate APP_KEY using openssl (no PHP needed - avoids PHP CLI version issues)
-            if ! grep -q 'APP_KEY=base64:' .env 2>/dev/null || grep -q 'APP_KEY=$' .env 2>/dev/null || grep -q 'APP_KEY=""' .env 2>/dev/null; then
+            # Generate APP_KEY if missing or invalid length (valid key = exactly 44 chars after base64:)
+            CURRENT_KEY=$(grep '^APP_KEY=' .env 2>/dev/null | sed 's/^APP_KEY=base64://' | tr -d '"' | tr -d "'")
+            if [ "${#CURRENT_KEY}" -ne 44 ] || [ -z "$CURRENT_KEY" ]; then
               NEW_KEY="base64:$(openssl rand -base64 32)"
               sed -i "s|^APP_KEY=.*|APP_KEY=${NEW_KEY}|" .env
-              echo "🔑 Generated APP_KEY"
+              echo "🔑 Generated valid APP_KEY (was invalid or missing)"
             fi
             
             # Create public_html symlink so Hostinger serves Laravel's public/ dir
