@@ -21,22 +21,101 @@ abstract class BaseHostingerCommand extends Command
     }
 
     /**
-     * Validate required configuration.
+     * Validate and interactively prompt for missing configuration.
      */
     protected function validateConfiguration(): bool
     {
+        $envFile = base_path('.env');
+        $envVars = [];
+        
         $required = [
-            'HOSTINGER_SSH_HOST' => config('hostinger-deploy.ssh.host'),
-            'HOSTINGER_SSH_USERNAME' => config('hostinger-deploy.ssh.username'),
-            'HOSTINGER_SITE_DIR' => $this->getSiteDir(),
+            'HOSTINGER_SSH_HOST' => [
+                'current' => config('hostinger-deploy.ssh.host'),
+                'prompt' => 'Enter your Hostinger Server IP (e.g., 72.61.247.242)',
+                'secret' => false
+            ],
+            'HOSTINGER_SSH_USERNAME' => [
+                'current' => config('hostinger-deploy.ssh.username'),
+                'prompt' => 'Enter your Hostinger SSH Username (e.g., u321483967)',
+                'secret' => false
+            ],
+            'HOSTINGER_SSH_PASSWORD' => [
+                'current' => config('hostinger-deploy.ssh.password'),
+                'prompt' => 'Enter your Hostinger SSH Password',
+                'secret' => true
+            ],
+            'HOSTINGER_SITE_DIR' => [
+                'current' => $this->getSiteDir(),
+                'prompt' => 'Enter your Hostinger Website Folder Name (e.g., mywebsite.com)',
+                'secret' => false
+            ],
+            'GITHUB_API_TOKEN' => [
+                'current' => env('GITHUB_API_TOKEN'),
+                'prompt' => 'Enter your GitHub Personal Access Token (or press enter to skip)',
+                'secret' => true,
+                'optional' => true
+            ]
         ];
 
-        foreach ($required as $key => $value) {
-            if (empty($value)) {
-                $this->error("❌ Missing required environment variable: {$key}");
-                $this->info("Please add {$key} to your .env file");
-                return false;
+        $missingKeys = false;
+
+        foreach ($required as $key => $details) {
+            if (empty($details['current'])) {
+                $missingKeys = true;
+                
+                if ($details['secret']) {
+                    $value = $this->secret($details['prompt']);
+                } else {
+                    $value = $this->ask($details['prompt']);
+                }
+
+                if (empty($value) && empty($details['optional'])) {
+                    $this->error("❌ {$key} is required to continue.");
+                    return false;
+                }
+
+                if (!empty($value)) {
+                    $envVars[$key] = $value;
+                    
+                    // Temporarily set it for the current command's memory
+                    putenv("{$key}={$value}");
+                    $_ENV[$key] = $value;
+                    $_SERVER[$key] = $value;
+                }
             }
+        }
+
+        // If we gathered new configuration, save it to .env
+        if ($missingKeys && !empty($envVars)) {
+            $this->info("💾 Saving your configuration to .env file...");
+            
+            if (file_exists($envFile)) {
+                $envContent = file_get_contents($envFile);
+                $updates = "\n# Laravel Hostinger Deploy Settings\n";
+                
+                foreach ($envVars as $key => $value) {
+                    // Overwrite if it exists but is empty, otherwise append
+                    if (preg_match("/^{$key}=.*/m", $envContent)) {
+                        $envContent = preg_replace("/^{$key}=.*/m", "{$key}=\"{$value}\"", $envContent);
+                    } else {
+                        $updates .= "{$key}=\"{$value}\"\n";
+                    }
+                }
+                
+                if (trim($updates) !== "# Laravel Hostinger Deploy Settings") {
+                    $envContent .= $updates;
+                }
+                
+                file_put_contents($envFile, $envContent);
+            }
+            
+            // Re-hydrate the config array with the new memory values so connections work immediately
+            config([
+                'hostinger-deploy.ssh.host' => env('HOSTINGER_SSH_HOST', $envVars['HOSTINGER_SSH_HOST'] ?? null),
+                'hostinger-deploy.ssh.username' => env('HOSTINGER_SSH_USERNAME', $envVars['HOSTINGER_SSH_USERNAME'] ?? null),
+                'hostinger-deploy.ssh.password' => env('HOSTINGER_SSH_PASSWORD', $envVars['HOSTINGER_SSH_PASSWORD'] ?? null),
+                'hostinger-deploy.deployment.site_dir' => env('HOSTINGER_SITE_DIR', $envVars['HOSTINGER_SITE_DIR'] ?? null),
+            ]);
         }
 
         return true;
@@ -76,8 +155,9 @@ abstract class BaseHostingerCommand extends Command
     protected function setupSshConnection(): void
     {
         $this->ssh = new SshConnectionService(
-            config('hostinger-deploy.ssh.host'),
-            config('hostinger-deploy.ssh.username'),
+            config('hostinger-deploy.ssh.host') ?? env('HOSTINGER_SSH_HOST'),
+            config('hostinger-deploy.ssh.username') ?? env('HOSTINGER_SSH_USERNAME'),
+            config('hostinger-deploy.ssh.password') ?? env('HOSTINGER_SSH_PASSWORD'),
             config('hostinger-deploy.ssh.port', 22),
             config('hostinger-deploy.ssh.timeout', 30)
         );
