@@ -441,7 +441,7 @@ abstract class BaseHostingerCommand extends Command
     /**
      * Get site directory from option or config.
      */
-    protected function getSiteDir(): string
+    protected function getSiteDir(): ?string
     {
         if ($this->hasOption('site-dir') && $this->option('site-dir')) {
             return $this->option('site-dir');
