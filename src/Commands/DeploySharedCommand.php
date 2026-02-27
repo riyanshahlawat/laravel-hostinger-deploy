@@ -315,8 +315,9 @@ class DeploySharedCommand extends BaseHostingerCommand
         $commands[] = "mkdir -p {$absolutePath}";
         $commands[] = "cd {$absolutePath}";
 
-        // Save repo URL for GitHub Actions fresh-clone fallback
-        $commands[] = "echo '{$repoUrl}' > ~/.git_remote_url";
+        // Save repo URL for GitHub Actions fresh-clone fallback (domain-specific)
+        $safeSiteDir = preg_replace('/[^a-zA-Z0-9]/', '_', $siteDir);
+        $commands[] = "echo '{$repoUrl}' > ~/.git_remote_url_{$safeSiteDir}";
 
         // Remove public_html if exists
         $commands[] = "rm -rf public_html";

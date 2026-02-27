@@ -221,8 +221,13 @@ jobs:
             
             cd domains/${{ secrets.WEBSITE_FOLDER }}
             
-            # Set up SSH key for git operations
-            SSH_KEY=$(ls ~/.ssh/id_rsa_* 2>/dev/null | head -1 || echo "$HOME/.ssh/id_rsa")
+            # Set up SSH key for git operations (use domain-specific key)
+            SAFE_FOLDER=$(echo "${{ secrets.WEBSITE_FOLDER }}" | sed 's/[^a-zA-Z0-9]/_/g')
+            if [ -f "$HOME/.ssh/id_rsa_${SAFE_FOLDER}" ]; then
+              SSH_KEY="$HOME/.ssh/id_rsa_${SAFE_FOLDER}"
+            else
+              SSH_KEY=$(ls ~/.ssh/id_rsa_* 2>/dev/null | head -1 || echo "$HOME/.ssh/id_rsa")
+            fi
             export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
 
             if [ ! -d ".git" ]; then
@@ -230,7 +235,7 @@ jobs:
               echo "📦 No git repo found. Doing fresh clone..."
               shopt -s dotglob
               rm -rf *
-              REMOTE_URL=$(cat ~/.git_remote_url 2>/dev/null || echo "")
+              REMOTE_URL=$(cat ~/.git_remote_url_${SAFE_FOLDER} 2>/dev/null || cat ~/.git_remote_url 2>/dev/null || echo "")
               if [ -z "$REMOTE_URL" ]; then
                 echo "❌ Cannot determine repo URL. Please redeploy via php artisan hostinger:deploy"
                 exit 1
