@@ -4,6 +4,7 @@ namespace TheCodeholic\LaravelHostingerDeploy\Services;
 
 use Illuminate\Support\Facades\Process;
 use phpseclib3\Net\SSH2;
+use phpseclib3\Net\SFTP;
 use phpseclib3\Crypt\PublicKeyLoader;
 
 class SshConnectionService
@@ -51,6 +52,80 @@ class SshConnectionService
         }
 
         throw new \Exception("SSH connection failed: No password provided and no local SSH key found at {$privateKeyPath}");
+    }
+
+    /**
+     * Get or establish an active SFTP connection.
+     */
+    protected function getSftpConnection(): SFTP
+    {
+        $sftp = new SFTP($this->host, $this->port, $this->timeout);
+
+        // Try authenticating with password if provided
+        if (!empty($this->password)) {
+            if (!$sftp->login($this->username, $this->password)) {
+                throw new \Exception("SFTP connection failed: Invalid password or authentication rejected by {$this->host}");
+            }
+            return $sftp;
+        }
+
+        // Fallback: Try authenticating with local SSH keys
+        $home = getenv('HOME') ?: getenv('USERPROFILE');
+        $privateKeyPath = "{$home}/.ssh/id_rsa";
+
+        if (file_exists($privateKeyPath)) {
+            $key = PublicKeyLoader::load(file_get_contents($privateKeyPath));
+            if (!$sftp->login($this->username, $key)) {
+                throw new \Exception("SFTP connection failed: Local SSH Key authentication rejected by {$this->host}");
+            }
+            return $sftp;
+        }
+
+        throw new \Exception("SFTP connection failed: No password provided and no local SSH key found at {$privateKeyPath}");
+    }
+
+    /**
+     * Upload a local directory to a remote path via SFTP.
+     */
+    public function uploadDirectory(string $localPath, string $remotePath): void
+    {
+        if (!is_dir($localPath)) {
+            throw new \Exception("Local directory '{$localPath}' does not exist");
+        }
+
+        try {
+            $sftp = $this->getSftpConnection();
+
+            // Ensure remote parent directory exists
+            $this->execute("mkdir -p " . escapeshellarg($remotePath) . " 2>/dev/null || true");
+
+            // Define a recursive function for uploading
+            $uploadRecursive = function ($localDir, $remoteDir) use (&$uploadRecursive, $sftp) {
+                if (!$sftp->is_dir($remoteDir)) {
+                    $sftp->mkdir($remoteDir);
+                }
+
+                $items = scandir($localDir);
+                foreach ($items as $item) {
+                    if ($item === '.' || $item === '..') {
+                        continue;
+                    }
+
+                    $localFile = $localDir . DIRECTORY_SEPARATOR . $item;
+                    $remoteFile = $remoteDir . '/' . $item;
+
+                    if (is_dir($localFile)) {
+                        $uploadRecursive($localFile, $remoteFile);
+                    } else {
+                        $sftp->put($remoteFile, $localFile, SFTP::SOURCE_LOCAL_FILE);
+                    }
+                }
+            };
+
+            $uploadRecursive($localPath, $remotePath);
+        } catch (\Exception $e) {
+            throw new \Exception("SFTP directory upload failed: " . $e->getMessage(), 0, $e);
+        }
     }
 
     /**

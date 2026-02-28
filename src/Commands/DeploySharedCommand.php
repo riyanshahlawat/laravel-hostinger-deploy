@@ -682,7 +682,8 @@ class DeploySharedCommand extends BaseHostingerCommand
 
         try {
             // Check if npm is available
-            $npmCheck = \Illuminate\Support\Facades\Process::run('which npm');
+            $npmCommand = (PHP_OS_FAMILY === 'Windows') ? 'npm --version' : 'which npm';
+            $npmCheck = \Illuminate\Support\Facades\Process::run($npmCommand);
             if (!$npmCheck->successful()) {
                 $this->warn('⚠️  npm not found. Skipping asset build.');
                 return;
@@ -738,29 +739,37 @@ class DeploySharedCommand extends BaseHostingerCommand
             $absolutePath = $this->getAbsoluteSitePath($siteDir);
             $remoteBuildPath = "{$absolutePath}/public/build";
 
-            // Build rsync command
-            $host = config('hostinger-deploy.ssh.host');
-            $username = config('hostinger-deploy.ssh.username');
-            $port = config('hostinger-deploy.ssh.port', 22);
+            // If rsync is available, try to use it (it's much faster)
+            $rsyncCommandCheck = PHP_OS_FAMILY === 'Windows' ? 'where rsync' : 'which rsync';
+            $rsyncCheck = \Illuminate\Support\Facades\Process::run($rsyncCommandCheck);
 
-            // Use rsync to copy files
-            $rsyncCommand = sprintf(
-                'rsync -r -e "ssh -p %d -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" %s/ %s@%s:%s',
-                $port,
-                escapeshellarg($buildPath),
-                $username,
-                $host,
-                escapeshellarg($remoteBuildPath)
-            );
+            if ($rsyncCheck->successful()) {
+                $host = config('hostinger-deploy.ssh.host');
+                $username = config('hostinger-deploy.ssh.username');
+                $port = config('hostinger-deploy.ssh.port', 22);
 
-            $rsyncProcess = \Illuminate\Support\Facades\Process::timeout(60)->run($rsyncCommand);
+                $rsyncCommand = sprintf(
+                    'rsync -r -e "ssh -p %d -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" %s/ %s@%s:%s',
+                    $port,
+                    escapeshellarg($buildPath),
+                    $username,
+                    $host,
+                    escapeshellarg($remoteBuildPath)
+                );
 
-            if (!$rsyncProcess->successful()) {
-                $this->warn('⚠️  Failed to copy built assets: ' . $rsyncProcess->errorOutput());
-                return;
+                $rsyncProcess = \Illuminate\Support\Facades\Process::timeout(120)->run($rsyncCommand);
+
+                if ($rsyncProcess->successful()) {
+                    $this->info('✅ Built assets copied to server successfully (via rsync)');
+                    return;
+                }
             }
 
-            $this->info('✅ Built assets copied to server successfully');
+            // Fallback to SFTP if rsync is not available or fails
+            $this->warn('⚠️  rsync not found or failed. Falling back to SFTP (this may take a moment)...');
+            $this->ssh->uploadDirectory($buildPath, $remoteBuildPath);
+            $this->info('✅ Built assets copied to server successfully (via SFTP)');
+
         } catch (\Exception $e) {
             $this->warn('⚠️  Error copying built assets: ' . $e->getMessage());
         }
