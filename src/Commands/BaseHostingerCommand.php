@@ -214,7 +214,7 @@ abstract class BaseHostingerCommand extends Command
                     $this->line('');
                     $this->info('📝 Please add GITHUB_API_TOKEN to your .env file and rerun the script.');
                     $this->line('');
-                    exit(0);
+                    return false;
                 }
                 
                 // User chose "yes" - continue without token, deploy key will be shown manually
