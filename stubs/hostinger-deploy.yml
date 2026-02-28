@@ -157,34 +157,6 @@ jobs:
           path: public/build/
         continue-on-error: true
 
-      - name: Setup Node.js (for asset building)
-        if: hashFiles('package.json') != ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
-
-      - name: Build Frontend Assets (if needed)
-        continue-on-error: true
-        if: hashFiles('package.json') != ''
-        run: |
-          echo "📦 Installing NPM dependencies..."
-          if [ -f package-lock.json ]; then
-            npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit
-          else
-            echo "ℹ️ No package-lock.json found, using npm install"
-            npm install --prefer-offline --no-audit
-          fi
-          
-          if grep -q "\"build\"" package.json || grep -q "\"prod\"" package.json; then
-            echo "🔨 Building assets for production..."
-            npm run build || npm run prod || echo "⚠️ Build script not found or failed"
-            echo "ℹ️ Note: Built assets should be committed to your repository for deployment"
-            echo "   (NPM may not be available on the remote server)"
-          else
-            echo "ℹ️ No build script found in package.json"
-          fi
-
       - name: Install SSH key
         run: |
           mkdir -p ~/.ssh/
@@ -195,9 +167,10 @@ jobs:
       - name: Copy Build Files to Target Server
         continue-on-error: true
         run: |
-          if [ -d "${{ github.workspace }}/public/build" ]; then
+          if [ -d "public/build" ]; then
+            echo "📤 Uploading built assets to server..."
             ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "mkdir -p ~/domains/${{ secrets.WEBSITE_FOLDER }}/public/build"
-            rsync -r --mkpath -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" ${{ github.workspace }}/public/build/ ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:~/domains/${{ secrets.WEBSITE_FOLDER }}/public/build/ || true
+            rsync -rzv --progress -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" public/build/ ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:~/domains/${{ secrets.WEBSITE_FOLDER }}/public/build/
           else
             echo "ℹ️ No build directory found, skipping asset copy"
           fi
